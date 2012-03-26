@@ -26,6 +26,9 @@ int main(void)
 	rtx_init();
 	
 	sei();
+	
+	rtx_enable(1);
+	
 	while(1)
 	{
 		rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",Hello World!\n"));

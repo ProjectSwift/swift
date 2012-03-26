@@ -25,11 +25,11 @@
 #include "rtty.h"
 
 /* MARK = Upper tone, Idle, bit  */
-#define TXMARK   (1 << 0) /* PA0 */
-#define TXSPACE  (1 << 1) /* PA1 */
+#define TXSPACE  (1 << 0) /* PA0 */
+#define TXMARK   (1 << 1) /* PA1 */
 #define TXENABLE (1 << 2) /* PA2 */
 
-#define TXBIT(b) PORTB = (PORTB & ~(TXMARK | TXSPACE)) | ((b) ? TXMARK : TXSPACE)
+#define TXBIT(b) PORTA = (PORTA & ~(TXMARK | TXSPACE)) | ((b) ? TXMARK : TXSPACE)
 
 volatile static uint8_t  txpgm = 0;
 volatile static uint8_t *txbuf = 0;
