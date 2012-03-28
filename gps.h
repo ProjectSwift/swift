@@ -1,6 +1,8 @@
 #ifndef __GPS_H__
 #define __GPS_H__
 
+#include <stdbool.h>
+
 void gps_setup(void);
 bool gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt);
 bool _gps_verify_checksum(uint8_t* data, uint8_t len);
