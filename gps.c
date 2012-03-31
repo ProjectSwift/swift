@@ -131,6 +131,39 @@ bool gps_check_lock(uint8_t* lock, uint8_t* sats)
 		return true;
 }
 
+uint8_t gps_check_nav(void)
+
+{
+
+	uint8_t request[8] = {0xB5, 0x62, 0x06, 0x24, 0x00, 0x00, 0x2A, 0x84};
+	uint8_t buf[44];
+	uint8_t i;
+
+	_gps_send_msg(request, 8);
+
+	for(i = 0; i < 44; i++)
+	buf[i] = _gps_get_byte();
+
+	if( buf[0] != 0xB5 || buf[1] !=0x62 )
+		return false;
+
+	if( buf[2] != 0x06 || buf[3] !=0x24 )
+		return false;
+
+        if( !_gps_verify_checksum(&buf[2], 44) )
+                return false;
+	
+	uint8_t ack[10];
+	uint8_t i;
+	for(i = 0; i < 10; i++)
+		ack[i] = _gps_get_byte();
+
+	if( buf[3] == 0x00 ) return 0xFF;
+
+	return buf[8];
+}
+	
+
 bool _gps_verify_checksum(uint8_t* data, uint8_t len)
 
 {
