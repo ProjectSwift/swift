@@ -99,6 +99,38 @@ bool gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
 
 }
 
+bool gps_check_lock(uint8_t* lock, uint8_t* sats)
+
+{
+
+	uint8_t request[8] = {0xB5, 0x62, 0x01, 0x06, 0x00, 0x00, 0x07, 0x16};
+	uint8_t buf[60];
+	uint8_t i;
+
+	_gps_send_msg(request, 8);
+
+	for(i = 0; i < 60; i++)
+	buf[i] = _gps_get_byte();
+	
+	if( buf [0] != 0xB5 || buf[1] != 0x62 )
+		return false;
+
+	if( buf [2] != 0x01 || buf[3] != 0x06 )
+		return false;
+
+	if( !_gps_verify_checksum(&buf[2], 56) )
+		return false;
+
+	if( buf[17] & 0x01 )
+		*lock = buf[16];
+	else
+		*lock = 0;
+
+	*sats = buf[53];
+
+		return true;
+}
+
 bool _gps_verify_checksum(uint8_t* data, uint8_t len)
 
 {
