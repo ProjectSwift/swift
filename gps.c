@@ -70,6 +70,35 @@ bool gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt)
         return true;
 }
 
+bool gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
+
+{
+	uint8_t request[8] = {0xB5, 0x62, 0x01, 0x21, 0x00, 0x00, 0x22, 0x67};
+	uint8_t buf[28];
+	uint8_t i;
+
+	_gps_send_msg(request, 8);
+
+	for(i = 0; i < 28; i++)
+	buf[i] = _gps_get_byte();
+
+	if( buf [0] != 0xB5 || buf[1] != 0x62 )
+		return false;
+
+	if( buf [2] != 0x01 || buf[3] != 0x21 )
+		return false;
+
+	if( !_gps_verify_checksum(&buf[2], 24) )
+		return false;
+
+	*hour = buf[22];
+	*minute = buf[23];
+	*second = buf[24];
+
+	return true;
+
+}
+
 bool _gps_verify_checksum(uint8_t* data, uint8_t len)
 
 {
