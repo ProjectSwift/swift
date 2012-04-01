@@ -24,11 +24,17 @@
 #include "rtty.h"
 #include "gps.h"
 
+#define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
+
 int main(void)
 {
 	uint32_t count = 0;
 	int32_t lat, lon, alt;
+	uint8_t hour, minute, second;
 	char msg[100];
+	
+	/* Set the LED pin for output */
+	DDRB |= _BV(DDB7);
 	
 	rtx_init();
 	gps_setup();
@@ -49,9 +55,17 @@ int main(void)
 			continue;
 		}
 		
+		if(!gps_get_time(&hour, &minute, &second))
+		{
+			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",No or invalid GPS response\n"));
+			continue;
+		}
+		
 		rtx_wait();
-		snprintf(msg, 100, "$$%s,%li,%li,%li,%li\n",
-			RTTY_CALLSIGN, count++, lat, lon, alt);
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%li,%li,%li\n",
+			RTTY_CALLSIGN, count++,
+			hour, minute, second,
+			lat, lon, alt);
 		rtx_string(msg);
 	}
 }

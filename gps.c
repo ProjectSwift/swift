@@ -19,205 +19,161 @@
 #include "config.h"
 #include <avr/io.h>
 #include <util/delay.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include "gps.h"
 
-void gps_setup(void)
-
+static uint8_t _gps_get_byte(void)
 {
+	while(!(UCSR1A & _BV(RXC1)));
+	return(UDR1);
+}
 
-        /* Do UART1 initialisation, 9600 baud */
-        UBRR1H = 0;
-        UBRR1L = F_CPU / 16 / 9600 - 1;
+static void _gps_send_byte(uint8_t b, uint8_t *ck_a, uint8_t *ck_b)
+{
+	while(!(UCSR1A & _BV(UDRE1)));
+	UDR1 = b;
+	if(ck_a && ck_b) *ck_b += *ck_a += b;
+}
 
-        /* Enable RX, TX and RX interrupt */
-        UCSR1B = (1 << RXEN1) | (1 << TXEN1);
+static void _gps_send_packet(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length)
+{
+	uint8_t ck_a = 0;
+	uint8_t ck_b = 0;
+	
+	_gps_send_byte(0xB5, 0, 0);
+	_gps_send_byte(0x62, 0, 0);
+	
+	_gps_send_byte(class,         &ck_a, &ck_b);
+	_gps_send_byte(id,            &ck_a, &ck_b);
+	_gps_send_byte(length & 0xFF, &ck_a, &ck_b);
+	_gps_send_byte(length >> 8,   &ck_a, &ck_b);
+	
+	while(length--) _gps_send_byte(*(payload++), &ck_a, &ck_b);
+	
+	_gps_send_byte(ck_a, 0, 0);
+	_gps_send_byte(ck_b, 0, 0);
+}
 
-        /* 8-bit, no parity and 1 stop bit */
-        UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
+static bool _gps_get_packet(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length)
+{
+	int8_t h = -1;
+	uint8_t b, *p = 0;
+	uint8_t ck_a = 0, ck_b = 0;
+	uint16_t len = 0, i;
+	
+	/* Search for the start of the expected packet */
+	for(i = 0; i < 4000 + len; i++)
+	{
+		b = _gps_get_byte();
+		
+		if(h > 1 && h < 7) ck_b += ck_a += b;
+		
+		switch(h)
+		{
+		case -1: len = ck_a = ck_b = 0; p = payload; h++;
+		case 0: if(b == 0xB5)  h++; break;
+		case 1: if(b == 0x62)  h++; else h = -1; break;
+		case 2: if(b == class) h++; else h = -1; break;
+		case 3: if(b == id)    h++; else h = -1; break;
+		case 4: len  = b; h++; break;
+		case 5: len += b << 8; h++;
+			if(len != length) return(false);
+			if(len == 0) h++;
+			break;
+		case 6: *(p++) = b; if(--len) break; else h++; break;
+		case 7: if(b == ck_a)  h++; else return(false); break;
+		case 8: if(b == ck_b)  h++; else return(false); break;
+		}
+		
+		/* 9 == success */
+		if(h == 9) break;
+	}
+	
+	return(h == 9);
+}
+
+void _gps_setup_port(void)
+{
+	/* This command configures the module for 9600 baud, 8n1,
+	 * and disables NMEA output and input */
+	uint8_t cmd[] = { 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0xC0, 0x08, 0x00, 0x00, 0x80, 0x25, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	
+	_gps_send_packet(0x06, 0x00, cmd, sizeof(cmd));
+	
+	/* TODO: Test for ACK */
+}
+
+void gps_setup(void)
+{
+	/* Do UART1 initialisation, 9600 baud */
+	UBRR1H = 0;
+	UBRR1L = F_CPU / 16 / 9600 - 1;
+	
+	/* Enable RX and TX */
+	UCSR1B = (1 << RXEN1) | (1 << TXEN1);
+	
+	/* 8-bit, no parity and 1 stop bit */
+	UCSR1C = (1 << UCSZ11) | (1 << UCSZ10);
+	
+	/* Configure the GPS module */
+	_gps_setup_port();
 }
 
 bool gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt)
 
 {
-	uint8_t request[8] = {0xB5, 0x62, 0x01, 0x02, 0x00, 0x00, 0x03, 0x0A};
-	uint8_t buf[36];
-	uint8_t i;
-
-	_gps_send_msg(request, 8);
-
-	for(i = 0; i < 36; i++)
-	buf[i] = _gps_get_byte();
-
-	if( buf[0] != 0xB5 || buf[1] != 0x62 )
-		return false;
-
-	if( buf[2] != 0x01 || buf[3] != 0x02 )
-		return false;
-
-        if( !_gps_verify_checksum(&buf[2], 32) )
-                return false;
-
-	*lon = (int32_t)buf[10] | (int32_t)buf[11] << 8 |
-		(int32_t)buf[12] << 16 | (int32_t)buf[13] << 24;
-
-	*lat = (int32_t)buf[14] | (int32_t)buf[15] << 8 |
-		(int32_t)buf[16] << 16 | (int32_t)buf[17] << 24;
-
-	*alt = (int32_t)buf[22] | (int32_t)buf[23] << 8 |
-		(int32_t)buf[24] << 16 | (int32_t)buf[25] << 24;
-
-        return true;
+	uint8_t buf[28];
+	
+	_gps_send_packet(0x01, 0x02, 0, 0);
+	if(!_gps_get_packet(0x01, 0x02, buf, 28)) return(false);
+	
+	*lon = (int32_t) buf[4] | (int32_t) buf[5] << 8
+	     | (int32_t) buf[6] << 16 | (int32_t) buf[7] << 24;
+	
+	*lat = (int32_t) buf[8] | (int32_t) buf[9] << 8
+	     | (int32_t) buf[10] << 16 | (int32_t) buf[11] << 24;
+	
+	*alt = (int32_t) buf[16] | (int32_t) buf[17] << 8
+	     | (int32_t) buf[18] << 16 | (int32_t) buf[19] << 24;
+	
+	return(true);
 }
 
 bool gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
-
 {
-	uint8_t request[8] = {0xB5, 0x62, 0x01, 0x21, 0x00, 0x00, 0x22, 0x67};
-	uint8_t buf[28];
-	uint8_t i;
+	uint8_t buf[20];
 
-	_gps_send_msg(request, 8);
-
-	for(i = 0; i < 28; i++)
-	buf[i] = _gps_get_byte();
-
-	if( buf [0] != 0xB5 || buf[1] != 0x62 )
-		return false;
-
-	if( buf [2] != 0x01 || buf[3] != 0x21 )
-		return false;
-
-	if( !_gps_verify_checksum(&buf[2], 24) )
-		return false;
-
-	*hour = buf[22];
-	*minute = buf[23];
-	*second = buf[24];
-
-	return true;
-
+	_gps_send_packet(0x01, 0x21, 0, 0);
+	if(!_gps_get_packet(0x01, 0x21, buf, 20)) return(false);
+	
+	*hour = buf[16];
+	*minute = buf[17];
+	*second = buf[18];
+	
+	return(true);
 }
 
-bool gps_check_lock(uint8_t* lock, uint8_t* sats)
-
+bool gps_check_lock(uint8_t *lock, uint8_t *sats)
 {
-
-	uint8_t request[8] = {0xB5, 0x62, 0x01, 0x06, 0x00, 0x00, 0x07, 0x16};
-	uint8_t buf[60];
-	uint8_t i;
-
-	_gps_send_msg(request, 8);
-
-	for(i = 0; i < 60; i++)
-	buf[i] = _gps_get_byte();
+	uint8_t buf[52];
 	
-	if( buf [0] != 0xB5 || buf[1] != 0x62 )
-		return false;
-
-	if( buf [2] != 0x01 || buf[3] != 0x06 )
-		return false;
-
-	if( !_gps_verify_checksum(&buf[2], 56) )
-		return false;
-
-	if( buf[17] & 0x01 )
-		*lock = buf[16];
-	else
-		*lock = 0;
-
-	*sats = buf[53];
-
-		return true;
+	_gps_send_packet(0x01, 0x06, 0, 0);
+	if(!_gps_get_packet(0x01, 0x06, buf, 52)) return(false);
+	
+	*lock = (buf[11] & 0x01 ? buf[10] : 0);
+	*sats = buf[47];
+	
+	return(true);
 }
 
 uint8_t gps_check_nav(void)
-
 {
-
-	uint8_t request[8] = {0xB5, 0x62, 0x06, 0x24, 0x00, 0x00, 0x2A, 0x84};
-	uint8_t buf[44];
-	uint8_t i;
-
-	_gps_send_msg(request, 8);
-
-	for(i = 0; i < 44; i++)
-	buf[i] = _gps_get_byte();
-
-	if( buf[0] != 0xB5 || buf[1] !=0x62 )
-		return false;
-
-	if( buf[2] != 0x06 || buf[3] !=0x24 )
-		return false;
-
-        if( !_gps_verify_checksum(&buf[2], 44) )
-                return false;
+	uint8_t buf[36];
 	
-	uint8_t ack[10];
-	uint8_t i;
-	for(i = 0; i < 10; i++)
-		ack[i] = _gps_get_byte();
-
-	if( buf[3] == 0x00 ) return 0xFF;
-
-	return buf[8];
-}
+	_gps_send_packet(0x06, 0x24, 0, 0);
+	if(!_gps_get_packet(0x06, 0x24, buf, 36)) return(0);
 	
-
-bool _gps_verify_checksum(uint8_t* data, uint8_t len)
-
-{
-	uint8_t a, b;
-	gps_ubx_checksum(data, len, &a, &b);
-	if( a != *(data + len) || b != *(data + len + 1))
-		return false;
-	else
-		return true;
+	return(buf[2]);
 }
 
-void gps_ubx_checksum(uint8_t* data, uint8_t len, uint8_t* cka, uint8_t* ckb)
-
-{
-	uint8_t i;
-
-	*cka = 0;
-	*ckb = 0;
-
-	for( i = 0; i < len; i++ )
-	{
-		*cka += *data;
-		*ckb += *cka;
-		data++;
-	}
-}
-
-void _gps_send_msg(uint8_t* data, uint8_t len)
-
-{
-	uint8_t i;
-	_gps_flush_buffer();
-	for(i = 0; i < len; i++)
-	{
-		while( !(UCSR1A & (1<<UDRE1)) );
-		UDR1 = *data;
-		data++;
-	}
-	while( !(UCSR1A & (1<<UDRE1)) );
-
-}
-
-uint8_t _gps_get_byte(void)
-
-{
-	while( !(UCSR1A & _BV(RXC1)) );
-	return UDR1;
-
-}
-
-void _gps_flush_buffer(void)
-
-{
-	uint8_t dummy;
-	while ( UCSR1A & _BV(RXC1) ) dummy = UDR1;
-
-}
