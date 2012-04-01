@@ -62,10 +62,12 @@ int main(void)
 		}
 		
 		rtx_wait();
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%li,%li,%li\n",
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li\n",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
-			lat, lon, alt);
+			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
+			(lon < 0 ? "-" : ""), labs(lon) / 10000000, labs(lon) % 10000000 / 100,
+			alt / 1000);
 		rtx_string(msg);
 	}
 }
