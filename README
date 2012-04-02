@@ -4,3 +4,28 @@ Project Swift : www.projectswift.co.uk
 
 This is the firmware for the Swift flight computer.
 
+--- PIN USAGE ---
+
+PA0: RTTY space
+PA1: RTTY mark
+PA2: RTTY enable
+PA3: DS1821 1-wire temperature sensors
+PA4: AX.25 enable
+PA5: VBATT_SENSE, VCC / 10 (ADC)
+
+PB7: Status LED
+
+PC0: BMP085 Pressure sensor (I2C SCL)
+PC1: BMP085 Pressure sensor (I2C SDA)
+
+PD0: SSDV RX (UART0)
+PD1: SSDV TX (UART0)
+PD2: GPS RX (UART1)
+PD3: GPS TX (UART1)
+PD7: AX.25 audio (PWM)
+
+--- TIMER USAGE ---
+
+Timer0 is used for the RTTY modem
+Timer2 is used for the AX.25 modem
+
