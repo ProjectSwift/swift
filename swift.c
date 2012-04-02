@@ -25,6 +25,7 @@
 #include <util/crc16.h>
 #include "rtty.h"
 #include "gps.h"
+#include "geofence.h"
 
 #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
 
