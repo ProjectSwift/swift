@@ -25,7 +25,7 @@
 
 #define UBX_INT32(buf, offset) (int32_t) buf[offset] | (int32_t) buf[offset + 1] << 8 | (int32_t) buf[offset + 2] << 16 | (int32_t) buf[offset + 3] << 24
 
-uint8_t _gps_get_byte(void)
+static uint8_t _gps_get_byte(void)
 {
 	while(!(UCSR1A & _BV(RXC1)));
 	return(UDR1);
@@ -100,7 +100,6 @@ void _gps_setup_port(void)
 	/* This command configures the module for 9600 baud, 8n1,
 	 * and disables NMEA output and input */
 	uint8_t cmd[20] = { 0x01, 0x00, 0x00, 0x00, 0xC0, 0x08, 0x00, 0x00, 0x80, 0x25, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	int i;
 	
 	_gps_send_packet(0x06, 0x00, cmd, 20);
 	

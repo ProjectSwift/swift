@@ -18,13 +18,24 @@
 
 #include "config.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
+#include <util/crc16.h>
 #include "rtty.h"
 #include "gps.h"
 
 #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
+
+uint16_t crccat(char *msg)
+{
+	uint16_t x;
+	for(x = 0xFFFF; *msg; msg++)
+		x = _crc_xmodem_update(x, *msg);
+	snprintf(msg, 8, "*%04X\n", x);
+	return(x);
+}
 
 int main(void)
 {
@@ -62,12 +73,13 @@ int main(void)
 		}
 		
 		rtx_wait();
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li\n",
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
 			(lon < 0 ? "-" : ""), labs(lon) / 10000000, labs(lon) % 10000000 / 100,
 			alt / 1000);
+		crccat(msg + 2);
 		rtx_string(msg);
 	}
 }
