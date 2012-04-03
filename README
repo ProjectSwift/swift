@@ -4,6 +4,11 @@ Project Swift : www.projectswift.co.uk
 
 This is the firmware for the Swift flight computer.
 
+--- AUTHORS ---
+
+Nigel Smart <nigel@projectswift.co.uk>
+Philip Heron <phil@sanslogic.co.uk>
+
 --- PIN USAGE ---
 
 PA0: RTTY space
