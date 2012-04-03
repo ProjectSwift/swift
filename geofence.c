@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-int32_t geofence[50*2] =
+static int32_t geofence[50*2] =
 
 { 
 489924043,-36103603,
@@ -74,7 +74,7 @@ int32_t geofence[50*2] =
 489924043,-36103603,
 };
 
-int pointinpoly(int32_t *poly, int points, int32_t x, int32_t y)
+static int pointinpoly(int32_t *poly, int points, int32_t x, int32_t y)
 {
         int32_t *p = poly;
         int32_t *l = &poly[points * 2 - 2];
@@ -90,4 +90,9 @@ int pointinpoly(int32_t *poly, int points, int32_t x, int32_t y)
         }
  
         return(c);
+}
+
+int geofence_test(int32_t lat, int32_t lon)
+{
+	return(pointinpoly(geofence, 50, lat, lon));
 }
