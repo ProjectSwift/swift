@@ -22,6 +22,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-extern uint32_t pointinpoly(int32_t *poly, int points, int32_t x, int32_t y);
+extern int geofence_test(int32_t lat, int32_t lon);
 
 #endif /*__GEOFENCE_H__ */
