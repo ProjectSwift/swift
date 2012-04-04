@@ -80,7 +80,7 @@ int main(void)
 
 		else
 		{
-			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",OUTSIDE UK AIRSPACE, APRS GEOFENCE DEACTIVED\n"));
+			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",OUTSIDE UK AIRSPACE, APRS GEOFENCE DEACTIVATED\n"));
 
 		}
 
