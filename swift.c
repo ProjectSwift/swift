@@ -73,26 +73,16 @@ int main(void)
 			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",No or invalid GPS response\n"));
 			continue;
 		}
-
-		if(geofence_test(lat, lon))
-		{
-			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",APRS GEOFENCE ACTIVE\n"));
-		}
-
-		else
-		{
-			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",OUTSIDE UK AIRSPACE, APRS GEOFENCE DEACTIVATED\n"));
-
-		}
 		
 		rtx_wait();
 		
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li",
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%c",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
 			(lon < 0 ? "-" : ""), labs(lon) / 10000000, labs(lon) % 10000000 / 100,
-			alt / 1000);
+			alt / 1000,
+			(geofence_test(lat, lon) ? '1' : '0'));
 		crccat(msg + 2);
 		rtx_string(msg);
 	}
