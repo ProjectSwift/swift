@@ -16,11 +16,10 @@
 /*                                                                       */
 /* You should have received a copy of the GNU General Public License     */
 /* along with this program. If not, see <http://www.gnu.org/licenses/>.  */
-#include <stdio.h>
+
 #include <stdint.h>
 
 static int32_t geofence[50*2] =
-
 { 
 489924043,-36103603,
 488138903,-22610257,

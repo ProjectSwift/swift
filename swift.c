@@ -83,9 +83,9 @@ int main(void)
 			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",OUTSIDE UK AIRSPACE, APRS GEOFENCE DEACTIVED\n"));
 
 		}
-
-			rtx_wait();
-
+		
+		rtx_wait();
+		
 		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,

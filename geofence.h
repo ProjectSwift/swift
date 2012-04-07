@@ -19,9 +19,9 @@
 #ifndef __GEOFENCE_H__
 #define __GEOFENCE_H__
 
-#include <stdio.h>
 #include <stdint.h>
 
 extern int geofence_test(int32_t lat, int32_t lon);
 
 #endif /*__GEOFENCE_H__ */
+
