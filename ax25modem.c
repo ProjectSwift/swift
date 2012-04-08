@@ -139,19 +139,6 @@ void ax25_init(void)
 	DDRD |= TXPIN;
 }
 
-static uint16_t _update_crc(uint16_t x, uint8_t byte)
-{
-	char i;
-	for(i = 0; i < 8; i++)
-	{
-		x ^= (byte >> i) & 1;
-		if(x & 1) x = (x >> 1) ^ 0x8408; /* X-modem CRC poly */
-		else x = x >> 1;
-	}
-	
-	return(x);
-}
-
 static uint8_t *_ax25_callsign(uint8_t *s, char *callsign, char ssid)
 {
 	char i;
@@ -194,7 +181,7 @@ void ax25_frame(char *scallsign, char sssid, char *dcallsign, char dssid,
 	
 	/* Calculate and append the checksum */
 	for(x = 0xFFFF, s = frame; *s; s++)
-		x = _update_crc(x, *s);
+		x = _crc_ccitt_update(x, *s);
 	
 	*(s++) = ~(x & 0xFF);
 	*(s++) = ~((x >> 8) & 0xFF);
