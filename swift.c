@@ -25,6 +25,7 @@
 #include <util/delay.h>
 #include <util/crc16.h>
 #include "rtty.h"
+#include "ax25modem.h"
 #include "gps.h"
 #include "geofence.h"
 
@@ -39,6 +40,34 @@ uint16_t crccat(char *msg)
 	return(x);
 }
 
+void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
+{
+	char slat[5];
+	char slng[5];
+	
+	/* Convert the UBLOX-style coordinates to
+	 * the APRS compressed format */
+	lat = 900000000 - lat;
+	lat = lat / 26 - lat / 2710 + lat / 15384615;
+	
+	lon = 900000000 + lon / 2;
+	lon = lon / 26 - lon / 2710 + lon / 15384615;
+	
+	alt = alt / 1000 * 32808 / 10000;
+	
+	ax25_frame(
+		APRS_CALLSIGN, APRS_SSID,
+		"APRS", 0,
+		0, 0, 0, 0,
+		//"WIDE1", 1,
+		//"WIDE2", 1,
+		"!/%s%sO   /A=%06ldswiftaprs test",
+		ax25_base91enc(slat, 4, lat),
+		ax25_base91enc(slng, 4, lon),
+		alt
+	);
+}
+
 int main(void)
 {
 	uint32_t count = 0;
@@ -50,6 +79,7 @@ int main(void)
 	DDRB |= _BV(DDB7);
 	
 	rtx_init();
+	ax25_init();
 	gps_setup();
 	
 	sei();
@@ -85,6 +115,11 @@ int main(void)
 			(geofence_test(lat, lon) ? '1' : '0'));
 		crccat(msg + 2);
 		rtx_string(msg);
+		
+#ifdef APRS_ENABLED
+		tx_aprs(lat, lon, alt);
+		{ int i; for(i = 0; i < 60; i++) _delay_ms(1000); }
+#endif
 	}
 }
 

@@ -5,6 +5,7 @@
 
 //#define APRS_ENABLED
 #define APRS_CALLSIGN "NOCALL"
+#define APRS_SSID     (0)
 
 #define RTTY_CALLSIGN "SWIFT"
 #define RTTY_BAUD (300)
