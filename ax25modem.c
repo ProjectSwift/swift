@@ -33,9 +33,10 @@ static const uint8_t const _sine_table[] = {
 #define TXPIN    (1 << 7) /* PD7 */
 #define TXENABLE (1 << 4) /* PA4 */
 
-#define BAUD_RATE   (1200)
-#define TABLE_SIZE  (512)
-#define REST_BYTES  (10)
+#define BAUD_RATE      (1200)
+#define TABLE_SIZE     (512)
+#define PREAMBLE_BYTES (25)
+#define REST_BYTES     (5)
 
 #define PLAYBACK_RATE    (F_CPU / 256)
 #define SAMPLES_PER_BAUD (PLAYBACK_RATE / BAUD_RATE)
@@ -52,7 +53,7 @@ ISR(TIMER2_OVF_vect)
 	static uint16_t phase  = 0;
 	static uint16_t step   = PHASE_DELTA_1200;
 	static uint16_t sample = 0;
-	static uint8_t rest    = REST_BYTES * 2;
+	static uint8_t rest    = PREAMBLE_BYTES + REST_BYTES;
 	static uint8_t byte;
 	static uint8_t bit     = 7;
 	static int8_t bc       = 0;
@@ -88,7 +89,7 @@ ISR(TIMER2_OVF_vect)
 				/* Prepare state for next run */
 				phase = sample = 0;
 				step  = PHASE_DELTA_1200;
-				rest  = REST_BYTES * 2;
+				rest  = PREAMBLE_BYTES + REST_BYTES;
 				bit   = 7;
 				bc    = 0;
 				
