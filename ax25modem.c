@@ -151,7 +151,7 @@ static uint16_t _update_crc(uint16_t x, uint8_t byte)
 	return(x);
 }
 
-uint8_t *ax25_callsign(uint8_t *s, char *callsign, char ssid)
+static uint8_t *_ax25_callsign(uint8_t *s, char *callsign, char ssid)
 {
 	char i;
 	for(i = 0; i < 6; i++)
@@ -177,10 +177,10 @@ void ax25_frame(char *scallsign, char sssid, char *dcallsign, char dssid,
 	while(_txlen);
 	
 	/* Write in the callsigns and paths */
-	s = ax25_callsign(frame, dcallsign, dssid);
-	s = ax25_callsign(s, scallsign, sssid);
-	if(path1) s = ax25_callsign(s, path1, ttl1);
-	if(path2) s = ax25_callsign(s, path2, ttl2);
+	s = _ax25_callsign(frame, dcallsign, dssid);
+	s = _ax25_callsign(s, scallsign, sssid);
+	if(path1) s = _ax25_callsign(s, path1, ttl1);
+	if(path2) s = _ax25_callsign(s, path2, ttl2);
 	
 	/* Mark the end of the callsigns */
 	s[-1] |= 1;
