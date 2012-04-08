@@ -31,6 +31,35 @@
 
 #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
 
+void adc_init()
+{
+	/* Prepare the ADC */
+	ADCSRA |= _BV(ADPS2) | _BV(ADPS1); /* /64 prescaler: 8Mhz = 125khz */
+	ADMUX  |= _BV(REFS1); /* Internal 1.1V Voltage Reference */
+	ADMUX  |= _BV(MUX0) | _BV(MUX2); /* ADC5 input */
+	ADMUX  |= _BV(ADLAR); /* Left adjust the result */
+	
+	ADCSRA |= _BV(ADEN); /* Enable ADC */
+}
+
+uint16_t adc_read()
+{
+	uint16_t r;
+	
+	/* Start a single conversion */
+	ADCSRA |= _BV(ADSC);
+	
+	/* Wait for the result */
+	while(ADCSRA & _BV(ADSC));
+	
+	/* Read the result and convert to millivolts */
+	r = ADCH;
+	r = r / 2 - r / 36;
+	
+	/* And return */
+	return(r);
+}
+
 uint16_t crccat(char *msg)
 {
 	uint16_t x;
@@ -73,11 +102,13 @@ int main(void)
 	uint32_t count = 0;
 	int32_t lat, lon, alt;
 	uint8_t hour, minute, second;
+	uint16_t mv;
 	char msg[100];
 	
 	/* Set the LED pin for output */
 	DDRB |= _BV(DDB7);
 	
+	adc_init();
 	rtx_init();
 	ax25_init();
 	gps_setup();
@@ -104,14 +135,18 @@ int main(void)
 			continue;
 		}
 		
+		/* Read the battery voltage */
+		mv = adc_read();
+		
 		rtx_wait();
 		
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%c",
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%c",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
 			(lon < 0 ? "-" : ""), labs(lon) / 10000000, labs(lon) % 10000000 / 100,
 			alt / 1000,
+			mv / 1000, mv / 10 % 100,
 			(geofence_test(lat, lon) ? '1' : '0'));
 		crccat(msg + 2);
 		rtx_string(msg);
