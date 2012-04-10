@@ -53,7 +53,7 @@ uint16_t adc_read()
 	while(ADCSRA & _BV(ADSC));
 	
 	/* Read the result and convert to millivolts */
-	r = ADCH;
+	r = ADCH * 100;
 	r = r / 2 - r / 36;
 	
 	/* And return */
@@ -73,6 +73,8 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 {
 	char slat[5];
 	char slng[5];
+	char stlm[9];
+	static uint16_t seq = 0;
 	
 	/* Convert the UBLOX-style coordinates to
 	 * the APRS compressed format */
@@ -84,17 +86,42 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 	
 	alt = alt / 1000 * 32808 / 10000;
 	
+	/* Construct the compressed telemetry format */
+	ax25_base91enc(stlm + 0, 2, seq);
+	ax25_base91enc(stlm + 2, 2, adc_read());
+	
 	ax25_frame(
 		APRS_CALLSIGN, APRS_SSID,
 		"APRS", 0,
 		0, 0, 0, 0,
 		//"WIDE1", 1,
 		//"WIDE2", 1,
-		"!/%s%sO   /A=%06ldswiftaprs test",
+		"!/%s%sO   /A=%06ld|%s|",
 		ax25_base91enc(slat, 4, lat),
 		ax25_base91enc(slng, 4, lon),
-		alt
+		alt, stlm
 	);
+	
+	if(seq % 60 == 0)
+	{
+		/* Transmit telemetry definitions */
+		ax25_frame(
+			APRS_CALLSIGN, APRS_SSID,
+			"APRS", 0,
+			0, 0, 0, 0,
+			":%s-%i:PARM.Battery",
+			APRS_CALLSIGN, APRS_SSID
+		);
+		ax25_frame(
+			APRS_CALLSIGN, APRS_SSID,
+			"APRS", 0,
+			0, 0, 0, 0,
+			":%s-%i :UNIT.mV",
+			APRS_CALLSIGN, APRS_SSID
+		);
+	}
+	
+	seq++;
 }
 
 int main(void)
