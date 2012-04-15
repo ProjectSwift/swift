@@ -1,6 +1,6 @@
 
 PROJECT=swift
-OBJECTS=swift.o rtty.o ax25modem.o gps.o geofence.o
+OBJECTS=swift.o rtty.o ax25modem.o gps.o geofence.o ds18b20.o
 
 # Serial device used for programming AVR
 TTYPORT=/dev/ttyACM0
