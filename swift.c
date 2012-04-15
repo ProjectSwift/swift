@@ -69,6 +69,7 @@ uint16_t crccat(char *msg)
 	return(x);
 }
 
+#ifdef APRX_ENABLED
 void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 {
 	char slat[5];
@@ -104,25 +105,30 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 	
 	if(seq % 60 == 0)
 	{
+		char s[10];
+		
+		/* Make up the callsign */
+		strncpy_P(s, PSTR(APRS_CALLSIGN), 6);
+		if(APRS_SSID) snprintf(s + strlen(s), 4, "-%i", APRS_SSID);
+		
 		/* Transmit telemetry definitions */
 		ax25_frame(
 			APRS_CALLSIGN, APRS_SSID,
 			"APRS", 0,
 			0, 0, 0, 0,
-			":%s-%i:PARM.Battery",
-			APRS_CALLSIGN, APRS_SSID
+			":%-9s:PARM.Battery", s
 		);
 		ax25_frame(
 			APRS_CALLSIGN, APRS_SSID,
 			"APRS", 0,
 			0, 0, 0, 0,
-			":%s-%i :UNIT.mV",
-			APRS_CALLSIGN, APRS_SSID
+			":%-9s:UNIT.mV", s
 		);
 	}
 	
 	seq++;
 }
+#endif
 
 int main(void)
 {
