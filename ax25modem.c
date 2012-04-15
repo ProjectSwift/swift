@@ -154,7 +154,7 @@ static uint8_t *_ax25_callsign(uint8_t *s, char *callsign, char ssid)
 void ax25_frame(char *scallsign, char sssid, char *dcallsign, char dssid,
 		char *path1, char ttl1, char *path2, char ttl2, char *data, ...)
 {
-	uint8_t frame[100];
+	static uint8_t frame[100];
 	uint8_t *s;
 	uint16_t x;
 	va_list va;
