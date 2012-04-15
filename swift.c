@@ -70,7 +70,7 @@ uint16_t crccat(char *msg)
 	return(x);
 }
 
-#ifdef APRX_ENABLED
+#ifdef APRS_ENABLED
 void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 {
 	char slat[5];
