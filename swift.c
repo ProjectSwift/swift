@@ -20,6 +20,7 @@
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
@@ -108,7 +109,7 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 		char s[10];
 		
 		/* Make up the callsign */
-		strncpy_P(s, PSTR(APRS_CALLSIGN), 6);
+		strncpy_P(s, PSTR(APRS_CALLSIGN), 7);
 		if(APRS_SSID) snprintf(s + strlen(s), 4, "-%i", APRS_SSID);
 		
 		/* Transmit telemetry definitions */
