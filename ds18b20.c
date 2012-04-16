@@ -40,6 +40,13 @@
 
 #define READ_PIN() (IN & PIN)
 
+/* Delay times */
+#define RESET_PULSE     (480)
+#define RESET_WAIT_LOW  (120 / 10)
+#define RESET_WAIT_HIGH (480 / 10)
+#define BEGIN_TIMESLOT  (5)
+#define TIMESLOT        (60)
+
 static int ds_reset()
 {
 	char i;
@@ -47,18 +54,18 @@ static int ds_reset()
 	/* Reset pulse - pull line low for at least 480us */
 	PIN_LOW();
 	PIN_OUT();
-	_delay_us(480);
+	_delay_us(RESET_PULSE);
 	PIN_IN();
 	
 	/* The sensor should respond by pulling the line low
 	 * after 15us to 60us for 60us to 240us. Wait for
 	 * 120us for the line to go low */
-	for(i = 0; READ_PIN() && i < 12; i++) _delay_us(10);
-	if(i == 10) return(DS_TIMEOUT);
+	for(i = 0; READ_PIN() && i < RESET_WAIT_LOW; i++) _delay_us(10);
+	if(i == RESET_WAIT_LOW) return(DS_TIMEOUT);
 	
 	/* Wait 480us for the line to go high again */
-	for(i = 0; !READ_PIN() && i < 48; i++) _delay_us(10);
-	if(i == 48) return(DS_TIMEOUT);
+	for(i = 0; !READ_PIN() && i < RESET_WAIT_HIGH; i++) _delay_us(10);
+	if(i == RESET_WAIT_HIGH) return(DS_TIMEOUT);
 	
 	return(DS_OK);
 }
@@ -69,13 +76,13 @@ static void ds_write_bit(uint8_t b)
 	 * pull line low for between 1us and 15us */
 	PIN_LOW();
 	PIN_OUT();
-	_delay_us(5);
+	_delay_us(BEGIN_TIMESLOT);
 	
 	/* "1" is written by releasing the line immediatly */
 	if(b) PIN_IN();
 	
 	/* Wait for the write slot to end and then release the line */
-	_delay_us(60 - 5);
+	_delay_us(TIMESLOT - BEGIN_TIMESLOT);
 	PIN_IN();
 }
 
@@ -87,12 +94,12 @@ static uint8_t ds_read_bit()
 	 * pull line low for between 1us and 15us */
 	PIN_LOW();
 	PIN_OUT();
-	_delay_us(5);
+	_delay_us(BEGIN_TIMESLOT);
 	PIN_IN();
 	
 	/* If the sensor pulls the line low within
 	 * the time slot the bit is 0 */
-	for(i = 0; i < 60 - 5; i++)
+	for(i = 0; i < TIMESLOT - BEGIN_TIMESLOT; i++)
 	{
 		if(!READ_PIN()) b = 0;
 		_delay_us(1);
