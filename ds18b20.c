@@ -137,14 +137,14 @@ int ds_search_rom(uint8_t *id, uint8_t mask)
 	/* Transmit the SEARCH ROM command */
 	ds_write_byte(0xF0);
 	
-	/* 8 bytes contains 8 bytes */
+	/* An ID is made up of 8 bytes (7 + CRC) */
 	for(crc = i = 0; i < 8; i++)
 	{
 		*id = 0;
 		
-		/* Test each bit */
 		for(j = 0; j < 8; j++)
 		{
+			/* Read the bit and its complement */
 			b1 = ds_read_bit();
 			b2 = ds_read_bit();
 			
