@@ -23,7 +23,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <util/crc16.h>
-#include "ds18b20.h"
+#include "ds18x20.h"
 
 /* The port and pin to use for 1-wire */
 #define PIN  _BV(3)
