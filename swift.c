@@ -29,8 +29,11 @@
 #include "ax25modem.h"
 #include "gps.h"
 #include "geofence.h"
+#include "ds18x20.h"
 
 #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
+
+uint8_t id[2][8];
 
 void adc_init()
 {
@@ -134,10 +137,11 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 int main(void)
 {
 	uint32_t count = 0;
-	int32_t lat, lon, alt;
+	int32_t lat, lon, alt, temp;
 	uint8_t hour, minute, second;
 	uint16_t mv;
 	char msg[100];
+	uint8_t i, r;
 	
 	/* Set the LED pin for output */
 	DDRB |= _BV(DDB7);
@@ -148,12 +152,37 @@ int main(void)
 	gps_setup();
 	
 	sei();
-	
+
 	/* Enable the radio and let it settle */
 	rtx_enable(1);
 	_delay_ms(1000);
 	
 	rtx_string_P(PSTR(RTTY_CALLSIGN " starting up"));
+	rtx_string_P(PSTR("Scanning 1-wire bus:\n"));
+
+        for(i = 0; i < 3; i++)
+        {
+                r = ds_search_rom(id[i], i);
+
+                if(r == DS_OK || r == DS_MORE)
+                {
+                        rtx_wait();
+                        snprintf(msg, 100, "%i> %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
+                                i,
+                                id[i][0], id[i][1], id[i][2], id[i][3],
+                                id[i][4], id[i][5], id[i][6], id[i][7]);
+                        rtx_string(msg);
+                }
+                else
+                {
+                        rtx_wait();
+                        snprintf(msg, 100, "%i> Error %i\n", i, r);
+                        rtx_string(msg);
+                }
+
+                if(r != DS_MORE) break;
+        }
+        rtx_string_P(PSTR("Done\n"));
 	
 	while(1)
 	{
@@ -171,16 +200,20 @@ int main(void)
 		
 		/* Read the battery voltage */
 		mv = adc_read();
+
+		/* Read the temperature from sensor 0 */
+		ds_read_temperature(&temp, id[0]);
 		
 		rtx_wait();
 		
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%c",
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%li.%01li,%c",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
 			(lon < 0 ? "-" : ""), labs(lon) / 10000000, labs(lon) % 10000000 / 100,
 			alt / 1000,
 			mv / 1000, mv / 10 % 100,
+			temp / 10000, labs(temp) / 1000 % 10,
 			(geofence_test(lat, lon) ? '1' : '0'));
 		crccat(msg + 2);
 		rtx_string(msg);
