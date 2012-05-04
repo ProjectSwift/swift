@@ -45,7 +45,13 @@
 #define RESET_WAIT_LOW  (120 / 10)
 #define RESET_WAIT_HIGH (480 / 10)
 #define BEGIN_TIMESLOT  (5)
+#define DELAY_TIMESLOT  (5)
 #define TIMESLOT        (60)
+
+/* DS18x20 sensor IDs */
+#define DS18S20_ID (0x10)
+#define DS1822_ID  (0x22)
+#define DS18B20_ID (0x28)
 
 static int ds_reset()
 {
@@ -96,6 +102,8 @@ static uint8_t ds_read_bit()
 	PIN_OUT();
 	_delay_us(BEGIN_TIMESLOT);
 	PIN_IN();
+	
+	_delay_us(DELAY_TIMESLOT);
 	
 	/* If the sensor pulls the line low within
 	 * the time slot the bit is 0 */
@@ -183,7 +191,7 @@ int ds_search_rom(uint8_t *id, uint8_t mask)
 		id++;
 	}
 	
-	return(DS_OK);
+	return(r);
 }
 
 static int ds_match_rom(uint8_t *id)
@@ -256,11 +264,28 @@ int ds_read_temperature(int32_t *temperature, uint8_t *id)
 	i = ds_read_scratchpad(sp);
 	if(i != DS_OK) return(i);
 	
-	/* Read the result from the scratchpad */
-	temp = sp[0] | (sp[1] << 8);
+	switch(id[0])
+	{
+	case DS18B20_ID:
+		/* Read the result from the scratchpad */
+		temp = sp[0] | (sp[1] << 8);
+		
+		/* Convert to a 4dp fixed-point integer */
+		*temperature = temp * 625L;
+		break;
 	
-	/* Convert to a 4dp fixed-point integer */
-	*temperature = temp * 625L;
+	case DS18S20_ID:
+		/* Read the result from the scratchpad */
+		temp = sp[0] | (sp[1] << 8);
+		
+		/* Convert to a 4dp fixed-point integer */
+		*temperature = temp * 5000L;
+		break;
+	
+	case DS1822_ID:
+		*temperature = 0;
+		break;
+	}
 	
 	return(DS_OK);
 }
