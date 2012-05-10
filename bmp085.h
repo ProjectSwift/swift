@@ -43,7 +43,7 @@ typedef struct {
 	
 } bmp085_t;
 
-extern void bmp085_init();
+extern void bmp085_init(bmp085_t *s);
 extern int bmp085_read_calibration(bmp085_t *s);
 extern int bmp085_sample(bmp085_t *s, uint8_t oversample);
 extern int16_t bmp085_calc_temperature(bmp085_t *s);

@@ -132,11 +132,14 @@ static uint8_t _tw_write(uint8_t addr, uint8_t *ptr, uint8_t len)
 
 /* -------------------------------------------- */
 
-void bmp085_init()
+void bmp085_init(bmp085_t *s)
 {
 	/* Set the I2C speed */
 	TWSR = _BV(TWPS1) | _BV(TWPS0); /* /64 prescaler */
 	TWBR = 0;
+	
+	/* Clear the state */
+	s->ac1 = 0;
 }
 
 int bmp085_read_calibration(bmp085_t *s)
@@ -159,16 +162,28 @@ int bmp085_read_calibration(bmp085_t *s)
 	s->md  = _INT16(buf, 20);
 	
 	/* TODO: The data communication can be checked by checking
-	 * that none of the words has the value 0 or 0xFFFF. */
-	
-	s->b5 = 0;
+	 * that none of the words has the value 0 or 0xFFFF.
+	 * I only check the first value */
+	if(s->ac1 == 0 || s->ac1 == 0xFFFF)
+	{
+		s->ac1 = 0;
+		return(BMP_ERROR);
+	}
 	
 	return(BMP_OK);
 }
 
 int bmp085_sample(bmp085_t *s, uint8_t oversample)
 {
+	int32_t x1, x2;
 	uint8_t buf[3];
+	
+	/* Load the calibration data if not already in memory */
+	if(!s->ac1)
+	{
+		int r = bmp085_read_calibration(s);
+		if(r != BMP_OK) return(r);
+	}
 	
 	/* Store the oversample parameter */
 	s->oversample = oversample;
@@ -202,17 +217,16 @@ int bmp085_sample(bmp085_t *s, uint8_t oversample)
 	
 	s->up = _INT24(buf, 0) >> (8 - s->oversample);
 	
+	/* Calculate s->b5 from the raw temperature */
+	x1 = (((int32_t) s->ut - s->ac6) * s->ac5) >> 15;
+	x2 = ((int32_t) s->mc << 11) / (x1 + s->md);
+	s->b5 = x1 + x2;
+	
 	return(BMP_OK);
 }
 
 int16_t bmp085_calc_temperature(bmp085_t *s)
 {
-	int32_t x1, x2;
-	
-	x1 = (((int32_t) s->ut - s->ac6) * s->ac5) >> 15;
-	x2 = ((int32_t) s->mc << 11) / (x1 + s->md);
-	s->b5 = x1 + x2;
-	
 	return((s->b5 + 8) >> 4);
 }
 
@@ -221,8 +235,6 @@ int32_t bmp085_calc_pressure(bmp085_t *s)
 	int32_t x1, x2, x3;
 	int32_t b3, b6, p;
 	uint32_t b4, b7;
-	
-	if(!s->b5) bmp085_calc_temperature(s);
 	
 	b6 = s->b5 - 4000;
 	
@@ -243,6 +255,7 @@ int32_t bmp085_calc_pressure(bmp085_t *s)
 	x1 = (p >> 8) * (p >> 8);
 	x1 = (x1 * 3038) >> 16;
 	x2 = (-7357 * p) >> 16;
+	
 	return(p += (x1 + x2 + 3791) >> 4);
 }
 
