@@ -30,6 +30,7 @@
 #include "gps.h"
 #include "geofence.h"
 #include "ds18x20.h"
+#include "bmp085.h"
 
 #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
 
@@ -137,11 +138,12 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 int main(void)
 {
 	uint32_t count = 0;
-	int32_t lat, lon, alt, temp;
+	int32_t lat, lon, alt, temp, pressure;
 	uint8_t hour, minute, second;
 	uint16_t mv;
 	char msg[100];
 	uint8_t i, r;
+	bmp085_t bmp;
 	
 	/* Set the LED pin for output */
 	DDRB |= _BV(DDB7);
@@ -150,20 +152,21 @@ int main(void)
 	rtx_init();
 	ax25_init();
 	gps_setup();
+	bmp085_init(&bmp);
 	
 	sei();
-
+	
 	/* Enable the radio and let it settle */
 	rtx_enable(1);
 	_delay_ms(1000);
 	
-	rtx_string_P(PSTR(RTTY_CALLSIGN " starting up"));
+	rtx_string_P(PSTR(RTTY_CALLSIGN " starting up\n"));
 	rtx_string_P(PSTR("Scanning 1-wire bus:\n"));
-
+	
         for(i = 0; i < 3; i++)
         {
                 r = ds_search_rom(id[i], i);
-
+		
                 if(r == DS_OK || r == DS_MORE)
                 {
                         rtx_wait();
@@ -179,7 +182,7 @@ int main(void)
                         snprintf(msg, 100, "%i> Error %i\n", i, r);
                         rtx_string(msg);
                 }
-
+		
                 if(r != DS_MORE) break;
         }
         rtx_string_P(PSTR("Done\n"));
@@ -204,9 +207,13 @@ int main(void)
 		/* Read the temperature from sensor 0 */
 		ds_read_temperature(&temp, id[0]);
 		
+		/* Read the pressure from the BMP085 */
+		if(bmp085_sample(&bmp, 3) != BMP_OK) pressure = 0;
+		else pressure = bmp085_calc_pressure(&bmp);
+		
 		rtx_wait();
 		
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%li.%01li,%c",
+		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%li.%01li,%li,%c",
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
@@ -214,6 +221,7 @@ int main(void)
 			alt / 1000,
 			mv / 1000, mv / 10 % 100,
 			temp / 10000, labs(temp) / 1000 % 10,
+			pressure,
 			(geofence_test(lat, lon) ? '1' : '0'));
 		crccat(msg + 2);
 		rtx_string(msg);
