@@ -1,0 +1,95 @@
+diff --git a/Makefile b/Makefile
+index 90017d7..a92e072 100644
+--- a/Makefile
++++ b/Makefile
+@@ -3,7 +3,7 @@ PROJECT=swift
+ OBJECTS=swift.o rtty.o ax25modem.o gps.o geofence.o ds18b20.o
+ 
+ # Serial device used for programming AVR
+-TTYPORT=/dev/ttyACM0
++#TTYPORT=/dev/ttyACM0
+ 
+ CFLAGS=-Os -Wall -mmcu=atmega644p
+ CC=avr-gcc
+@@ -22,14 +22,14 @@ clean:
+ 	rm -f *.o *.out *.map *.hex *~
+ 
+ flash: rom.hex
+-	#avrdude -p m644p -B 1 -c usbtiny -U flash:w:rom.hex:i
+-	avrdude -p m644p -B 1 -c stk500v2 -P $(TTYPORT) -U flash:w:rom.hex:i
++	avrdude -p m644p -B 1 -c usbtiny -U flash:w:rom.hex:i
++	#avrdude -p m644p -B 1 -c stk500v2 -P $(TTYPORT) -U flash:w:rom.hex:i
+ 
+ setfuses:
+ 	# This sets the low fuse to use an external 7.3728MHz or 8MHz crystal,
+ 	# with no prescaler
+-	#avrdude -p m644p -c usbtiny -U lfuse:w:0xF7:m
+-	avrdude -p m644p -c stk500v2 -P $(TTYPORT)  -U lfuse:w:0xF7:m
++	avrdude -p m644p -c usbtiny -U lfuse:w:0xF7:m
++	#avrdude -p m644p -c stk500v2 -P $(TTYPORT)  -U lfuse:w:0xF7:m
+ 	
+ 	# Use the internal 8MHz osccilator, /8 prescaler (Default)
+ 	#avrdude -p m644p -c stk500v2 -P $(TTYPORT) -U lfuse:w:0x62:m
+diff --git a/geofence.c b/geofence.c
+index cad11df..c986d4e 100644
+--- a/geofence.c
++++ b/geofence.c
+@@ -104,7 +104,7 @@ static int pointinpoly(const int32_t *poly, int points, int32_t x, int32_t y)
+ 	return(c);
+ }
+ 
+-int geofence_test(int32_t lat, int32_t lon)
++int geofence_uk(int32_t lat, int32_t lon)
+ {
+ 	return(pointinpoly(geofence, 50, lat, lon));
+ }
+diff --git a/geofence.h b/geofence.h
+index 8aec3c5..86baa43 100644
+--- a/geofence.h
++++ b/geofence.h
+@@ -23,7 +23,7 @@
+ 
+ #include <stdint.h>
+ 
+-extern int geofence_test(int32_t lat, int32_t lon);
++extern int geofence_uk(int32_t lat, int32_t lon);
+ 
+ #endif /*__GEOFENCE_H__ */
+ 
+diff --git a/swift.c b/swift.c
+index 98defc3..d800cc9 100644
+--- a/swift.c
++++ b/swift.c
+@@ -29,6 +29,7 @@
+ #include "ax25modem.h"
+ #include "gps.h"
+ #include "geofence.h"
++#include "ds18b20.h"
+ 
+ #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
+ 
+@@ -137,6 +138,7 @@ int main(void)
+ 	int32_t lat, lon, alt;
+ 	uint8_t hour, minute, second;
+ 	uint16_t mv;
++	int32_t temperature;
+ 	char msg[100];
+ 	
+ 	/* Set the LED pin for output */
+@@ -174,14 +176,14 @@ int main(void)
+ 		
+ 		rtx_wait();
+ 		
+-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%c",
++		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%05li,%s%li.%05li,%li,%i.%02i,%c,",
+ 			RTTY_CALLSIGN, count++,
+ 			hour, minute, second,
+ 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 100,
+ 			(lon < 0 ? "-" : ""), labs(lon) / 10000000, labs(lon) % 10000000 / 100,
+ 			alt / 1000,
+ 			mv / 1000, mv / 10 % 100,
+-			(geofence_test(lat, lon) ? '1' : '0'));
++			(geofence_uk(lat, lon) ? '1' : '0'));
+ 		crccat(msg + 2);
+ 		rtx_string(msg);
+ 		

@@ -42,11 +42,11 @@
 
 /* Delay times */
 #define RESET_PULSE     (480)
-#define RESET_WAIT_LOW  (120 / 10)
-#define RESET_WAIT_HIGH (480 / 10)
+#define RESET_WAIT_LOW  (80)
 #define BEGIN_TIMESLOT  (5)
 #define DELAY_TIMESLOT  (5)
 #define TIMESLOT        (60)
+#define RECOVERY        (10)
 
 /* DS18x20 sensor IDs */
 #define DS18S20_ID (0x10)
@@ -55,8 +55,6 @@
 
 static int ds_reset()
 {
-	char i;
-	
 	/* Reset pulse - pull line low for at least 480us */
 	PIN_LOW();
 	PIN_OUT();
@@ -65,13 +63,12 @@ static int ds_reset()
 	
 	/* The sensor should respond by pulling the line low
 	 * after 15us to 60us for 60us to 240us. Wait for
-	 * 120us for the line to go low */
-	for(i = 0; READ_PIN() && i < RESET_WAIT_LOW; i++) _delay_us(10);
-	if(i == RESET_WAIT_LOW) return(DS_TIMEOUT);
+	 * 80us for the line to go low */
+	_delay_us(RESET_WAIT_LOW);
+	if(READ_PIN()) return(DS_TIMEOUT);
 	
-	/* Wait 480us for the line to go high again */
-	for(i = 0; !READ_PIN() && i < RESET_WAIT_HIGH; i++) _delay_us(10);
-	if(i == RESET_WAIT_HIGH) return(DS_TIMEOUT);
+	_delay_us(RESET_PULSE - RESET_WAIT_LOW);
+	if(!READ_PIN()) return(DS_TIMEOUT);
 	
 	return(DS_OK);
 }
@@ -90,6 +87,8 @@ static void ds_write_bit(uint8_t b)
 	/* Wait for the write slot to end and then release the line */
 	_delay_us(TIMESLOT - BEGIN_TIMESLOT);
 	PIN_IN();
+	
+	_delay_us(RECOVERY);
 }
 
 static uint8_t ds_read_bit()
@@ -112,6 +111,8 @@ static uint8_t ds_read_bit()
 		if(!READ_PIN()) b = 0;
 		_delay_us(1);
 	}
+	
+	_delay_us(RECOVERY);
 	
 	return(b);
 }
