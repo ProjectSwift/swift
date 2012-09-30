@@ -21,12 +21,29 @@
 #ifndef __GPS_H__
 #define __GPS_H__
 
-#include <stdbool.h>
+#include <stdint.h>
+#include "timeout.h"
+
+#define GPS_OK          (0)
+#define GPS_ERROR       (1)
+#define GPS_TIMEOUT     (2)
+#define GPS_BUFFER_FULL (3)
+#define GPS_BAD_CRC     (4)
+#define GPS_NAK         (5)
+#define GPS_UNEXPECTED  (6)
 
 extern void gps_setup(void);
-extern bool gps_get_pos(int32_t *lat, int32_t *lon, int32_t *alt);
-extern bool gps_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second);
-extern bool gps_get_lock(uint8_t *lock, uint8_t *sats);
-extern uint8_t gps_check_nav(void);
+
+extern void gps_send_packet(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length);
+extern int gps_get_packet(uint8_t *class, uint8_t *id, uint8_t *payload, uint16_t *length, to_int timeout);
+extern int gps_get_packet_type(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length, to_int timeout);
+extern int gps_get_ack(uint8_t class, uint8_t id, to_int timeout);
+
+extern int gps_get_pos(int32_t *lat, int32_t *lon, int32_t *alt);
+extern int gps_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second);
+extern int gps_get_lock(uint8_t *lock, uint8_t *sats);
+
+extern int gps_set_nav(uint8_t nav);
+extern int gps_get_nav(uint8_t *nav);
 
 #endif /*__GPS_H__ */

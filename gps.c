@@ -19,93 +19,193 @@
 /* along with this program. If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#include <avr/io.h>
-#include <util/delay.h>
 #include <stdint.h>
-#include <stdbool.h>
+#include <avr/io.h>
 #include "gps.h"
+#include "timeout.h"
 
-#define UBX_INT32(buf, offset) (int32_t) buf[offset] | (int32_t) buf[offset + 1] << 8 | (int32_t) buf[offset + 2] << 16 | (int32_t) buf[offset + 3] << 24
+/* UBX messages classes */
+#define UBX_CLASS_NAV (0x01) /* Navigation Results */
+#define UBX_CLASS_RXM (0x02) /* Receiver Manager Messages */
+#define UBX_CLASS_INF (0x04) /* Information Messages */
+#define UBX_CLASS_ACK (0x05) /* Ack/Nack Messages */
+#define UBX_CLASS_CFG (0x06) /* Configuration Input Messages */
+#define UBX_CLASS_MON (0x0A) /* Monitoring Messages */
+#define UBX_CLASS_AID (0x0B) /* AssistNow Aiding Messages */
+#define UBX_CLASS_TIM (0x0D) /* Timing Messages */
 
-static uint8_t _gps_get_byte(void)
+#define UBX_INT32(buf) ( \
+	(int32_t) ((uint8_t *) buf)[0] | \
+	(int32_t) ((uint8_t *) buf)[1] << 8 | \
+	(int32_t) ((uint8_t *) buf)[2] << 16 | \
+	(int32_t) ((uint8_t *) buf)[3] << 24 )
+
+#define MAX_PAYLOAD (64)
+static uint8_t _buf[MAX_PAYLOAD];
+
+static void _gps_flush(void)
 {
-	while(!(UCSR1A & _BV(RXC1)));
-	return(UDR1);
+	uint8_t b;
+	while(UCSR1A & _BV(RXC1)) b = UDR1;
+}
+
+static uint8_t _gps_get_byte(uint8_t *byte, to_int ts, to_int timeout)
+{
+	if(!byte) return(GPS_ERROR);
+	
+	/* Wait for a byte */
+	while(!(UCSR1A & _BV(RXC1)))
+	{
+		/* Test for timeout */
+		if(to_since(ts) >= timeout) return(GPS_TIMEOUT);
+	}
+	
+	/* Read received byte and return OK */
+	*byte = UDR1;
+	
+	return(GPS_OK);
 }
 
 static void _gps_send_byte(uint8_t b, uint8_t *ck_a, uint8_t *ck_b)
 {
+	/* Wait for UART1 to free up and then transmit byte */
 	while(!(UCSR1A & _BV(UDRE1)));
 	UDR1 = b;
+	
+	/* Update checksum if required */
 	if(ck_a && ck_b) *ck_b += *ck_a += b;
 }
 
-static void _gps_send_packet(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length)
+void gps_send_packet(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length)
 {
 	uint8_t ck_a = 0;
 	uint8_t ck_b = 0;
 	
+	/* SYNC codes */
 	_gps_send_byte(0xB5, 0, 0);
 	_gps_send_byte(0x62, 0, 0);
 	
+	/* Header */
 	_gps_send_byte(class,         &ck_a, &ck_b);
 	_gps_send_byte(id,            &ck_a, &ck_b);
 	_gps_send_byte(length & 0xFF, &ck_a, &ck_b);
 	_gps_send_byte(length >> 8,   &ck_a, &ck_b);
 	
+	/* Payload */
 	while(length--) _gps_send_byte(*(payload++), &ck_a, &ck_b);
 	
+	/* Checksum */
 	_gps_send_byte(ck_a, 0, 0);
 	_gps_send_byte(ck_b, 0, 0);
 }
 
-static bool _gps_get_packet(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length)
+int gps_get_packet(uint8_t *class, uint8_t *id, uint8_t *payload, uint16_t *length, to_int timeout)
 {
-	int8_t h = -1;
-	uint8_t b, *p = 0;
-	uint8_t ck_a = 0, ck_b = 0;
-	uint16_t len = 0, i;
+	int8_t s = -1;
+	uint8_t b, ck_a, ck_b;
+	uint16_t len;
+	to_int timestamp;
 	
-	/* Search for the start of the expected packet */
-	for(i = 0; i < 4000 + len; i++)
+	/* Flush the UART buffer */
+	_gps_flush();
+	
+	/* Note the current time */
+	timestamp = to_clock();
+	
+	/* Loop until timeout or packet received */
+	len = ck_a = ck_b = 0;
+	while(_gps_get_byte(&b, timestamp, timeout) == GPS_OK)
 	{
-		b = _gps_get_byte();
+		/* Update the CRC if reading the header or payload */
+		if(s > 1 && s < 7) ck_b += ck_a += b;
 		
-		if(h > 1 && h < 7) ck_b += ck_a += b;
-		
-		switch(h)
+		/* Parse the incoming data */
+		switch(s)
 		{
-		case -1: len = ck_a = ck_b = 0; p = payload; h++;
-		case 0: if(b == 0xB5)  h++; break;
-		case 1: if(b == 0x62)  h++; else h = -1; break;
-		case 2: if(b == class) h++; else h = -1; break;
-		case 3: if(b == id)    h++; else h = -1; break;
-		case 4: len  = b; h++; break;
-		case 5: len += b << 8; h++;
-			if(len != length) return(false);
-			if(len == 0) h++;
+		case -1: len = ck_a = ck_b = 0; s++;
+		case 0: if(b == 0xB5)  s++; break;
+		case 1: if(b == 0x62)  s++; else s = -1; break;
+		case 2: *class = b; s++; break;
+		case 3: *id = b; s++; break;
+		case 4: len = b; s++; break;
+		case 5: len += b << 8; s += (len ? 1 : 2);
+			if(len > *length) { *length = len; return(GPS_BUFFER_FULL); }
+			*length = len;
 			break;
-		case 6: *(p++) = b; if(--len) break; else h++; break;
-		case 7: if(b == ck_a)  h++; else return(false); break;
-		case 8: if(b == ck_b)  h++; else return(false); break;
+		case 6: *(payload++) = b; if(--len) break; else s++; break;
+		case 7: if(b == ck_a) s++; else return(GPS_BAD_CRC); break;
+		case 8: if(b == ck_b) return(GPS_OK); else return(GPS_BAD_CRC);
 		}
-		
-		/* 9 == success */
-		if(h == 9) break;
 	}
 	
-	return(h == 9);
+	/* If we reach here, the timeout has triggered */
+	return(GPS_TIMEOUT);
 }
 
-void _gps_setup_port(void)
+int gps_get_packet_type(uint8_t class, uint8_t id, uint8_t *payload, uint16_t length, to_int timeout)
+{
+	uint16_t l;
+	uint8_t c, i;
+	int r;
+	
+	c = i = 0;
+	
+	/* Read the next packet */
+	l = length;
+	r = gps_get_packet(&c, &i, payload, &l, timeout);
+	
+	if(r != GPS_OK) return(r);
+	
+	/* Verify it's the correct type */
+	if(c != class || i != id) return(GPS_UNEXPECTED);
+	
+	/* Verify the length */
+	if(l != length) return(GPS_UNEXPECTED);
+	
+	/* Looks good */
+	return(GPS_OK);
+}
+
+int gps_get_ack(uint8_t class, uint8_t id, to_int timeout)
+{
+	uint8_t payload[2];
+	uint16_t l;
+	uint8_t c, i;
+	int r;
+	
+	/* Read the next packet */
+	l = sizeof(payload);
+	r = gps_get_packet(&c, &i, payload, &l, timeout);
+	if(r != GPS_OK) return(r);
+	
+	/* Verify it's the correct type */
+	if(c != UBX_CLASS_ACK) return(GPS_UNEXPECTED);
+	if(i != 0x00 && i != 0x01) return(GPS_UNEXPECTED);
+	if(l != 2) return(GPS_UNEXPECTED);
+	
+	/* Verify it's for the specified message */
+	if(payload[0] != class || payload[1] != id) return(GPS_UNEXPECTED);
+	
+	/* Response is a valid ACK-NAK */
+	if(i == 0x00) return(GPS_NAK);
+	
+	/* Response is a valid ACK-ACK */
+	return(GPS_OK);
+}
+
+static int _gps_setup_port(void)
 {
 	/* This command configures the module for 9600 baud, 8n1,
 	 * and disables NMEA output and input */
 	uint8_t cmd[20] = { 0x01, 0x00, 0x00, 0x00, 0xC0, 0x08, 0x00, 0x00, 0x80, 0x25, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	int r;
 	
-	_gps_send_packet(0x06, 0x00, cmd, 20);
+	gps_send_packet(UBX_CLASS_CFG, 0x00, cmd, 20);
 	
-	/* TODO: Test for ACK */
+	/* Check the response from the GPS module */
+	r = gps_get_ack(UBX_CLASS_CFG, 0x00, 1500);
+	
+	return(r);
 }
 
 void gps_setup(void)
@@ -124,54 +224,101 @@ void gps_setup(void)
 	_gps_setup_port();
 }
 
-bool gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt)
+int gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt)
 {
-	uint8_t buf[28];
+	int r;
 	
-	_gps_send_packet(0x01, 0x02, 0, 0);
-	if(!_gps_get_packet(0x01, 0x02, buf, 28)) return(false);
+	/* Transmit the request and read response */
+	gps_send_packet(UBX_CLASS_NAV, 0x02, 0, 0);
+	r = gps_get_packet_type(UBX_CLASS_NAV, 0x02, _buf, 28, 1500);
+	if(r != GPS_OK) return(r);
 	
-	*lon = UBX_INT32(buf, 4);
-	*lat = UBX_INT32(buf, 8);
-	*alt = UBX_INT32(buf, 16);
+	/* Parse response */
+	*lon = UBX_INT32(&_buf[4]);
+	*lat = UBX_INT32(&_buf[8]);
+	*alt = UBX_INT32(&_buf[16]);
 	
-	return(true);
+	return(GPS_OK);
 }
 
-bool gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
+int gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
 {
-	uint8_t buf[20];
-
-	_gps_send_packet(0x01, 0x21, 0, 0);
-	if(!_gps_get_packet(0x01, 0x21, buf, 20)) return(false);
+	int r;
 	
-	*hour = buf[16];
-	*minute = buf[17];
-	*second = buf[18];
+	/* Transmit the request and read response */
+	gps_send_packet(UBX_CLASS_NAV, 0x21, 0, 0);
+	r = gps_get_packet_type(UBX_CLASS_NAV, 0x21, _buf, 20, 1500);
+	if(r != GPS_OK) return(r);
 	
-	return(true);
+	/* Parse response */
+	*hour = _buf[16];
+	*minute = _buf[17];
+	*second = _buf[18];
+	
+	return(GPS_OK);
 }
 
-bool gps_check_lock(uint8_t *lock, uint8_t *sats)
+int gps_get_lock(uint8_t *lock, uint8_t *sats)
 {
-	uint8_t buf[52];
+	int r;
 	
-	_gps_send_packet(0x01, 0x06, 0, 0);
-	if(!_gps_get_packet(0x01, 0x06, buf, 52)) return(false);
+	/* Transmit the request and read response */
+	gps_send_packet(UBX_CLASS_NAV, 0x06, 0, 0);
+	r = gps_get_packet_type(UBX_CLASS_NAV, 0x06, _buf, 52, 1500);
+	if(r != GPS_OK) return(r);
 	
-	*lock = (buf[11] & 0x01 ? buf[10] : 0);
-	*sats = buf[47];
+	/* Parse response */
+	*lock = (_buf[11] & 0x01 ? _buf[10] : 0);
+	*sats = _buf[47];
 	
-	return(true);
+	return(GPS_OK);
 }
 
-uint8_t gps_check_nav(void)
+int gps_set_nav(uint8_t nav)
 {
-	uint8_t buf[36];
+	uint8_t cmd[] = {
+		0xFF,0xFF,0x06,0x03,0x00,0x00,0x00,0x00,0x10,0x27,0x00,0x00,0x05,0x00,0xFA,0x00,
+		0xFA,0x00,0x64,0x00,0x2C,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+		0x00,0x00,0x00,0x00
+	};
+	int r;
 	
-	_gps_send_packet(0x06, 0x24, 0, 0);
-	if(!_gps_get_packet(0x06, 0x24, buf, 36)) return(0);
+	cmd[2] = nav;
 	
-	return(buf[2]);
+	gps_send_packet(UBX_CLASS_CFG, 0x24, cmd, sizeof(cmd));
+	r = gps_get_ack(UBX_CLASS_CFG, 0x24, 500);
+	
+	return(r);
+}
+
+int gps_get_nav(uint8_t *nav)
+{
+	int r;
+	
+	/* Transmit the request and read response */
+	gps_send_packet(UBX_CLASS_CFG, 0x24, 0, 0);
+	r = gps_get_packet_type(UBX_CLASS_CFG, 0x24, _buf, 36, 500);
+	if(r != GPS_OK) return(r);
+	
+	/* Parse response */
+	*nav = _buf[2];
+	
+	/* The response is followed by an ACK-ACK */
+	r = gps_get_ack(UBX_CLASS_CFG, 0x24, 500);
+	
+	return(GPS_OK);
+}
+
+int gps_set_psm(uint8_t psm)
+{
+	uint8_t cmd[] = { 0x08, 0x00 };
+	int r;
+	
+	cmd[1] = psm;
+	
+	gps_send_packet(UBX_CLASS_CFG, 0x11, cmd, sizeof(cmd));
+	r = gps_get_ack(UBX_CLASS_CFG, 0x11, 500);
+	
+	return(r);
 }
 

@@ -151,10 +151,11 @@ int main(void)
 	adc_init();
 	rtx_init();
 	ax25_init();
-	gps_setup();
 	bmp085_init(&bmp);
 	
 	sei();
+	
+	gps_setup();
 	
 	/* Enable the radio and let it settle */
 	rtx_enable(1);
@@ -189,16 +190,16 @@ int main(void)
 	
 	while(1)
 	{
-		if(!gps_get_pos(&lat, &lon, &alt))
+		if(gps_get_pos(&lat, &lon, &alt) != GPS_OK)
 		{
 			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",No or invalid GPS response\n"));
-			continue;
+			lat = lon = alt = 0;
 		}
 		
-		if(!gps_get_time(&hour, &minute, &second))
+		if(gps_get_time(&hour, &minute, &second) != GPS_OK)
 		{
 			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",No or invalid GPS response\n"));
-			continue;
+			hour = minute = second = 0;
 		}
 		
 		/* Read the battery voltage */
