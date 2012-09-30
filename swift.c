@@ -162,31 +162,35 @@ int main(void)
 	_delay_ms(1000);
 	
 	rtx_string_P(PSTR(RTTY_CALLSIGN " starting up\n"));
-	rtx_string_P(PSTR("Scanning 1-wire bus:\n"));
 	
-        for(i = 0; i < 3; i++)
-        {
-                r = ds_search_rom(id[i], i);
+	/* Scan the 1-wire bus, up to 16 devices */
+	rtx_string_P(PSTR("Scanning 1-wire bus:\n"));
+	for(i = 0; i < 16; i++)
+	{
+		r = ds_search_rom(id[i], i);
 		
-                if(r == DS_OK || r == DS_MORE)
-                {
-                        rtx_wait();
-                        snprintf(msg, 100, "%i> %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
-                                i,
-                                id[i][0], id[i][1], id[i][2], id[i][3],
-                                id[i][4], id[i][5], id[i][6], id[i][7]);
-                        rtx_string(msg);
-                }
-                else
-                {
-                        rtx_wait();
-                        snprintf(msg, 100, "%i> Error %i\n", i, r);
-                        rtx_string(msg);
-                }
+		if(r == DS_OK || r == DS_MORE)
+		{
+			/* A device was found, display the address */
+			rtx_wait();
+			snprintf(msg, 100, "%i> %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
+				i,
+				id[i][0], id[i][1], id[i][2], id[i][3],
+				id[i][4], id[i][5], id[i][6], id[i][7]);
+				rtx_string(msg);
+		}
+		else
+		{
+			/* Device not responding or no devices found */
+			rtx_wait();
+			snprintf(msg, 100, "%i> Error %i\n", i, r);
+			rtx_string(msg);
+		}
 		
-                if(r != DS_MORE) break;
-        }
-        rtx_string_P(PSTR("Done\n"));
+		/* No more devices? */
+		if(r != DS_MORE) break;
+	}
+	rtx_string_P(PSTR("Done\n"));
 	
 	while(1)
 	{
@@ -204,7 +208,7 @@ int main(void)
 		
 		/* Read the battery voltage */
 		mv = adc_read();
-
+		
 		/* Read the temperature from sensor 0 */
 		ds_read_temperature(&temp1, id[0]);
 		
