@@ -34,11 +34,20 @@
 #define UBX_CLASS_AID (0x0B) /* AssistNow Aiding Messages */
 #define UBX_CLASS_TIM (0x0D) /* Timing Messages */
 
-#define UBX_INT32(buf) ( \
-	(int32_t) ((uint8_t *) buf)[0] | \
-	(int32_t) ((uint8_t *) buf)[1] << 8 | \
-	(int32_t) ((uint8_t *) buf)[2] << 16 | \
-	(int32_t) ((uint8_t *) buf)[3] << 24 )
+#define U4(buf, i) ( \
+	(uint32_t) ((uint8_t) buf[i + 0]) | \
+	(uint32_t) ((uint8_t) buf[i + 1]) << 8 | \
+	(uint32_t) ((uint8_t) buf[i + 2]) << 16 | \
+	(uint32_t) ((uint8_t) buf[i + 3]) << 24)
+#define I4(buf, i) ((int32_t) U4(buf, i))
+
+#define U2(buf, i) ( \
+	(uint16_t) ((uint8_t) buf[i + 0]) | \
+	(uint16_t) ((uint8_t) buf[i + 1]) << 8)
+#define I2(buf, i) ((int16_t) U2(buf, i))
+
+#define U1(buf, i) ((uint8_t) buf[i])
+#define I1(buf, i) ((int8_t) buf[i])
 
 #define MAX_PAYLOAD (64)
 static uint8_t _buf[MAX_PAYLOAD];
@@ -224,7 +233,7 @@ void gps_setup(void)
 	_gps_setup_port();
 }
 
-int gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt)
+int gps_get_pos(int32_t *lat, int32_t *lon, int32_t *alt)
 {
 	int r;
 	
@@ -234,14 +243,14 @@ int gps_get_pos(int32_t* lat, int32_t* lon, int32_t* alt)
 	if(r != GPS_OK) return(r);
 	
 	/* Parse response */
-	*lon = UBX_INT32(&_buf[4]);
-	*lat = UBX_INT32(&_buf[8]);
-	*alt = UBX_INT32(&_buf[16]);
+	if(lon) *lon = I4(_buf, 4);
+	if(lat) *lat = I4(_buf, 8);
+	if(alt) *alt = I4(_buf, 16);
 	
 	return(GPS_OK);
 }
 
-int gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
+int gps_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second)
 {
 	int r;
 	
@@ -251,14 +260,14 @@ int gps_get_time(uint8_t* hour, uint8_t* minute, uint8_t* second)
 	if(r != GPS_OK) return(r);
 	
 	/* Parse response */
-	*hour = _buf[16];
-	*minute = _buf[17];
-	*second = _buf[18];
+	if(hour)   *hour   = U1(_buf, 16);
+	if(minute) *minute = U1(_buf, 17);
+	if(second) *second = U1(_buf, 18);
 	
 	return(GPS_OK);
 }
 
-int gps_get_lock(uint8_t *lock, uint8_t *sats)
+int gps_get_lock(uint8_t *lock, uint32_t *pacc, uint16_t *pdop, uint8_t *sats)
 {
 	int r;
 	
@@ -268,11 +277,37 @@ int gps_get_lock(uint8_t *lock, uint8_t *sats)
 	if(r != GPS_OK) return(r);
 	
 	/* Parse response */
-	*lock = (_buf[11] & 0x01 ? _buf[10] : 0);
-	*sats = _buf[47];
+	if(lock) *lock = U1(_buf, 10);
+	if(pacc) *pacc = U4(_buf, 24);
+	if(pdop) *pdop = U2(_buf, 44);
+	if(sats) *sats = U1(_buf, 47);
 	
 	return(GPS_OK);
 }
+
+int gps_get_dop(uint32_t *itow, uint16_t *gdop, uint16_t *pdop, uint16_t *tdop,
+	uint16_t *vdop, uint16_t *hdop, uint16_t *ndop, uint16_t *edop)
+{
+	int r;
+	
+	/* Transmit the request and read response */
+	gps_send_packet(UBX_CLASS_NAV, 0x04, 0, 0);
+	r = gps_get_packet_type(UBX_CLASS_NAV, 0x04, _buf, 18, 1500);
+	if(r != GPS_OK) return(r);
+	
+	/* Parse response */
+	if(itow) *itow = U4(_buf, 0);
+	if(gdop) *gdop = U2(_buf, 4);
+	if(pdop) *pdop = U2(_buf, 6);
+	if(tdop) *tdop = U2(_buf, 8);
+	if(vdop) *vdop = U2(_buf, 10);
+	if(hdop) *hdop = U2(_buf, 12);
+	if(ndop) *ndop = U2(_buf, 14);
+	if(edop) *edop = U2(_buf, 16);
+	
+	return(GPS_OK);
+}
+
 
 int gps_set_nav(uint8_t nav)
 {
@@ -301,7 +336,7 @@ int gps_get_nav(uint8_t *nav)
 	if(r != GPS_OK) return(r);
 	
 	/* Parse response */
-	*nav = _buf[2];
+	if(nav) *nav = _buf[2];
 	
 	/* The response is followed by an ACK-ACK */
 	r = gps_get_ack(UBX_CLASS_CFG, 0x24, 500);

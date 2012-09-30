@@ -41,9 +41,13 @@ extern int gps_get_ack(uint8_t class, uint8_t id, to_int timeout);
 
 extern int gps_get_pos(int32_t *lat, int32_t *lon, int32_t *alt);
 extern int gps_get_time(uint8_t *hour, uint8_t *minute, uint8_t *second);
-extern int gps_get_lock(uint8_t *lock, uint8_t *sats);
+extern int gps_get_lock(uint8_t *lock, uint32_t *pacc, uint16_t *pdop, uint8_t *sats);
+extern int gps_get_dop(uint32_t *itow, uint16_t *gdop, uint16_t *pdop, uint16_t *tdop,
+	uint16_t *vdop, uint16_t *hdop, uint16_t *ndop, uint16_t *edop);
 
 extern int gps_set_nav(uint8_t nav);
 extern int gps_get_nav(uint8_t *nav);
+
+extern int gps_set_psm(uint8_t psm);
 
 #endif /*__GPS_H__ */
