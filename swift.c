@@ -197,7 +197,8 @@ int main(void)
 		/* Set the GPS navmode every 10 strings */
 		if(count % 10 == 0)
 		{
-			if(gps_set_nav(0x06) != GPS_OK)
+			/* Mode 6 is "Airborne with <1g Acceleration" */
+			if(gps_set_nav(6) != GPS_OK)
 			{
 				rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",Error setting GPS navmode\n"));
 			}
