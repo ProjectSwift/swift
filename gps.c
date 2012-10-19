@@ -311,16 +311,22 @@ int gps_get_dop(uint32_t *itow, uint16_t *gdop, uint16_t *pdop, uint16_t *tdop,
 
 int gps_set_nav(uint8_t nav)
 {
-	uint8_t cmd[] = {
-		0xFF,0xFF,0x06,0x03,0x00,0x00,0x00,0x00,0x10,0x27,0x00,0x00,0x05,0x00,0xFA,0x00,
-		0xFA,0x00,0x64,0x00,0x2C,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-		0x00,0x00,0x00,0x00
-	};
 	int r;
 	
-	cmd[2] = nav;
+	/* Request the current navmode */
+	gps_send_packet(UBX_CLASS_CFG, 0x24, 0, 0);
+	r = gps_get_packet_type(UBX_CLASS_CFG, 0x24, _buf, 36, 500);
+	if(r != GPS_OK) return(r);
 	
-	gps_send_packet(UBX_CLASS_CFG, 0x24, cmd, sizeof(cmd));
+	/* The response is followed by an ACK-ACK */
+	r = gps_get_ack(UBX_CLASS_CFG, 0x24, 500);
+	if(r != GPS_OK) return(r);
+	
+	/* Set the new mode */
+	_buf[2] = nav;
+	
+	/* Transmit the new setting */
+	gps_send_packet(UBX_CLASS_CFG, 0x24, _buf, 36);
 	r = gps_get_ack(UBX_CLASS_CFG, 0x24, 500);
 	
 	return(r);
