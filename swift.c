@@ -194,12 +194,23 @@ int main(void)
 	
 	while(1)
 	{
+		/* Set the GPS navmode every 10 strings */
+		if(count % 10 == 0)
+		{
+			if(gps_set_nav(0x06) != GPS_OK)
+			{
+				rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",Error setting GPS navmode\n"));
+			}
+		}
+		
+		/* Get the latitude and longitude */
 		if(gps_get_pos(&lat, &lon, &alt) != GPS_OK)
 		{
 			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",No or invalid GPS response\n"));
 			lat = lon = alt = 0;
 		}
 		
+		/* Get the GPS time */
 		if(gps_get_time(&hour, &minute, &second) != GPS_OK)
 		{
 			rtx_string_P(PSTR("$$" RTTY_CALLSIGN ",No or invalid GPS response\n"));
@@ -219,6 +230,7 @@ int main(void)
 		if(bmp085_sample(&bmp, 3) != BMP_OK) pressure = 0;
 		else pressure = bmp085_calc_pressure(&bmp);
 		
+		/* Build up the string */
 		rtx_wait();
 		
 		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%04li,%s%li.%04li,%li,%i.%01i,%li,%li,%li,%c",
