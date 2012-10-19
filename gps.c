@@ -322,6 +322,9 @@ int gps_set_nav(uint8_t nav)
 	r = gps_get_ack(UBX_CLASS_CFG, 0x24, 500);
 	if(r != GPS_OK) return(r);
 	
+	/* Do no action if the nav mode is already set */
+	if(_buf[2] == nav) return(r);
+	
 	/* Set the new mode */
 	_buf[2] = nav;
 	
