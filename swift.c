@@ -68,9 +68,17 @@ uint16_t adc_read()
 uint16_t crccat(char *msg)
 {
 	uint16_t x;
+	
+	/* Skip initial '$'s */
+	while(*msg == '$') msg++;
+	
+	/* Calculate the checksum */
 	for(x = 0xFFFF; *msg; msg++)
 		x = _crc_xmodem_update(x, *msg);
+	
+	/* Append it to the string */
 	snprintf(msg, 8, "*%04X\n", x);
+	
 	return(x);
 }
 
@@ -245,7 +253,7 @@ int main(void)
 			temp2 / 10000,
 			pressure,
 			(geofence_test(lat, lon) ? '1' : '0'));
-		crccat(msg + 2);
+		crccat(msg);
 		rtx_string(msg);
 		
 #ifdef APRS_ENABLED
