@@ -14,12 +14,13 @@
 #include <string.h>
 #include <avr/io.h> 
 #include "c328.h"
+#include "timeout.h"
 
-/* >10ms timeout at 300 hz */
-#define CMD_TIMEOUT (20)
+/* 100ms timeout for commands */
+#define CMD_TIMEOUT (100)
 
 /* Wait longer for the camera to take the image and return DATA response */
-#define PIC_TIMEOUT (200)
+#define PIC_TIMEOUT (500)
 
 #define RXREADY (UCSR0A & (1 << RXC0))
 
@@ -31,14 +32,6 @@ uint16_t rxbuf_len = 0;
 /* Expected package size */
 static uint16_t pkg_len = 64; /* Default is 64 according to datasheet */
 
-/* Timeout counter */
-volatile static uint8_t timeout_clk = 0;
-
-inline void c3_tick(void)
-{
-	if(timeout_clk) timeout_clk--;
-}
-
 static void tx_byte(uint8_t b)
 {
 	/* Wait for empty transmit buffer */
@@ -48,12 +41,14 @@ static void tx_byte(uint8_t b)
 	UDR0 = b;
 }
 
-static uint8_t c3_rx(uint8_t timeout)
+static uint8_t c3_rx(to_int timeout)
 {
+	to_int to;
+	
 	rxbuf_len = 0;
 	
-	timeout_clk = timeout;
-	while(timeout_clk)
+	to = to_clock();
+	while(to_since(to) < timeout)
 	{
 		if(!RXREADY) continue;
 		rxbuf[rxbuf_len++] = UDR0;
@@ -169,6 +164,7 @@ char c3_get_package(uint16_t id, uint8_t **dst, uint16_t *length)
 	volatile uint16_t s;
 	/* s is volatile to work around an apparent bug in avr-gcc --
 	 * discovered by ms7821 in #highaltitude */
+	to_int to;
 	
 	rxbuf_len = 0;
 	checksum = 0;
@@ -178,8 +174,8 @@ char c3_get_package(uint16_t id, uint8_t **dst, uint16_t *length)
 	c3_tx(CMD_ACK, 0, 0, id & 0xFF, id >> 8);
 	
 	/* The camera should immediatly start returning data */
-	timeout_clk = CMD_TIMEOUT;
-	while(timeout_clk && rxbuf_len < s)
+	to = to_clock();
+	while(to_since(to) < CMD_TIMEOUT && rxbuf_len < s)
 	{
 		if(!RXREADY) continue;
 		
@@ -194,7 +190,7 @@ char c3_get_package(uint16_t id, uint8_t **dst, uint16_t *length)
 			if(s > pkg_len) return(-1);
 		}
 		
-		timeout_clk = CMD_TIMEOUT;
+		to = to_clock();
 	}
 	
 	/* Test for timeout or incomplete package */
