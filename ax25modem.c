@@ -20,13 +20,14 @@
 #include "config.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/pgmspace.h>
 #include <util/crc16.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include "ax25modem.h"
 
-static const uint8_t const _sine_table[] = {
+PROGMEM static uint8_t const _sine_table[] = {
 #include "sine_table.h"
 };
 
@@ -59,7 +60,7 @@ ISR(TIMER2_OVF_vect)
 	static int8_t bc       = 0;
 	
 	/* Update the PWM output */
-	OCR2A = _sine_table[(phase >> 7) & 0x1FF];
+	OCR2A = pgm_read_byte(&_sine_table[(phase >> 7) & 0x1FF]);
 	phase += step;
 	
 	if(++sample < SAMPLES_PER_BAUD) return;
