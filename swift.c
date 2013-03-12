@@ -217,8 +217,15 @@ int main(void)
 	
 	adc_init();
 	rtx_init();
-	ax25_init();
 	bmp085_init(&bmp);
+	
+#ifdef APRS_ENABLED
+	ax25_init();
+#endif
+
+#ifdef SSDV_ENABLED
+	c3_init();
+#endif
 	
 	sei();
 	
