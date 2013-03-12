@@ -77,7 +77,7 @@ uint16_t crccat(char *msg)
 		x = _crc_xmodem_update(x, *msg);
 	
 	/* Append it to the string */
-	snprintf(msg, 8, "*%04X\n", x);
+	snprintf_P(msg, 8, PSTR("*%04X\n"), x);
 	
 	return(x);
 }
@@ -122,7 +122,7 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 		
 		/* Make up the callsign */
 		strncpy_P(s, PSTR(APRS_CALLSIGN), 7);
-		if(APRS_SSID) snprintf(s + strlen(s), 4, "-%i", APRS_SSID);
+		if(APRS_SSID) snprintf_P(s + strlen(s), 4, PSTR("-%i"), APRS_SSID);
 		
 		/* Transmit telemetry definitions */
 		ax25_frame(
@@ -181,7 +181,7 @@ int main(void)
 		{
 			/* A device was found, display the address */
 			rtx_wait();
-			snprintf(msg, 100, "%i> %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
+			snprintf_P(msg, 100, PSTR("%i> %02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"),
 				i,
 				id[i][0], id[i][1], id[i][2], id[i][3],
 				id[i][4], id[i][5], id[i][6], id[i][7]);
@@ -191,7 +191,7 @@ int main(void)
 		{
 			/* Device not responding or no devices found */
 			rtx_wait();
-			snprintf(msg, 100, "%i> Error %i\n", i, r);
+			snprintf_P(msg, 100, PSTR("%i> Error %i\n"), i, r);
 			rtx_string(msg);
 		}
 		
@@ -242,7 +242,7 @@ int main(void)
 		/* Build up the string */
 		rtx_wait();
 		
-		snprintf(msg, 100, "$$%s,%li,%02i:%02i:%02i,%s%li.%04li,%s%li.%04li,%li,%i.%01i,%li,%li,%li,%c",
+		snprintf_P(msg, 100, PSTR("$$%s,%li,%02i:%02i:%02i,%s%li.%04li,%s%li.%04li,%li,%i.%01i,%li,%li,%li,%c"),
 			RTTY_CALLSIGN, count++,
 			hour, minute, second,
 			(lat < 0 ? "-" : ""), labs(lat) / 10000000, labs(lat) % 10000000 / 1000,
