@@ -10,4 +10,6 @@
 #define RTTY_CALLSIGN "SWIFT"
 #define RTTY_BAUD (300)
 
+//#define SSDV_ENABLED
+
 #endif

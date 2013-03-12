@@ -25,7 +25,7 @@
 #define RXREADY (UCSR0A & (1 << RXC0))
 
 /* Receive buffer */
-#define RXBUF_LEN (256)
+#define RXBUF_LEN (128)
 uint8_t rxbuf[RXBUF_LEN];
 uint16_t rxbuf_len = 0;
 

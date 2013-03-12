@@ -10,7 +10,7 @@ TTYPORT=/dev/ttyACM0
 
 # Objects
 PROJECT=swift
-OBJECTS=swift.o rtty.o ax25modem.o gps.o geofence.o ds18x20.o bmp085.o timeout.o ssdv.o rs8encode.o
+OBJECTS=swift.o rtty.o ax25modem.o gps.o geofence.o ds18x20.o bmp085.o timeout.o ssdv.o rs8encode.o c328.o
 
 # Programs
 CC=avr-gcc

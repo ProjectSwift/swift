@@ -31,6 +31,8 @@
 #include "geofence.h"
 #include "ds18x20.h"
 #include "bmp085.h"
+#include "c328.h"
+#include "ssdv.h"
 
 #define LEDBIT(b) PORTB = (PORTB & (~_BV(7))) | ((b) ? _BV(7) : 0)
 
@@ -140,6 +142,63 @@ void tx_aprs(int32_t lat, int32_t lon, int32_t alt)
 	}
 	
 	seq++;
+}
+#endif
+
+#ifdef SSDV_ENABLED
+char tx_image(void)
+{
+	static char setup = 0;
+	static uint8_t img_id = 0;
+	static ssdv_t ssdv;
+	static uint8_t pkt[SSDV_PKT_SIZE];
+	static uint8_t img[64];
+	int r;
+	
+	if(!setup)
+	{
+		if((r = c3_open(SR_320x240)) != 0)
+		{
+			snprintf_P((char *) img, 64, PSTR("$$" RTTY_CALLSIGN ":Camera error %d\n"), r);
+			rtx_string((char *) img);
+			rtx_wait();
+			return(setup);
+		}
+		
+		setup = -1;
+		
+		ssdv_enc_init(&ssdv, RTTY_CALLSIGN, img_id++);
+		ssdv_enc_set_buffer(&ssdv, pkt);
+	}
+	
+	while((r = ssdv_enc_get_packet(&ssdv)) == SSDV_FEED_ME)
+	{
+		size_t r = c3_read(img, 64);
+		if(r == 0) break;
+		
+		ssdv_enc_feed(&ssdv, img, r);
+	}
+	
+	if(r != SSDV_OK)
+	{
+		/* Something went wrong! */
+		c3_close();
+		setup = 0;
+		rtx_string_P(PSTR("$$" RTTY_CALLSIGN ":ssdv_enc_get_packet() failed\n"));
+		return(setup);
+	}
+	
+	if(ssdv.state == S_EOI || c3_eof())
+	{
+		/* The end of the image has been reached */
+		c3_close();
+		setup = 0;
+	}
+	
+	/* Got the packet! Transmit it */
+	rtx_data(pkt, SSDV_PKT_SIZE);
+	
+	return(setup);
 }
 #endif
 
@@ -259,6 +318,15 @@ int main(void)
 #ifdef APRS_ENABLED
 		tx_aprs(lat, lon, alt);
 		{ int i; for(i = 0; i < 60; i++) _delay_ms(1000); }
+#endif
+
+#ifdef SSDV_ENABLED
+		if(tx_image() == -1)
+		{
+			/* The camera goes to sleep while transmitting telemetry,
+			 * sync'ing here seems to prevent it. */
+			c3_sync();
+		}
 #endif
 	}
 }
