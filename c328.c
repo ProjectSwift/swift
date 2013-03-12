@@ -224,6 +224,9 @@ static uint16_t package_id;
 
 char c3_open(uint8_t jr)
 {
+	/* In case of a reset, finish a previously started image */
+	c3_finish_picture();
+	
 	/* Open, setup and take the image */
 	if(c3_sync() != 0) return(-1);
 	if(c3_setup(CT_JPEG, 0, jr) != 0) return(-2);
