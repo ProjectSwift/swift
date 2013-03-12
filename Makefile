@@ -1,19 +1,23 @@
 
+MCU=atmega644p
+
 PROJECT=swift
 OBJECTS=swift.o rtty.o ax25modem.o gps.o geofence.o ds18x20.o bmp085.o timeout.o ssdv.o rs8encode.o
 
 # Serial device used for programming AVR
 #TTYPORT=/dev/ttyACM0
 
-CFLAGS=-Os -Wall -mmcu=atmega644p
+CFLAGS=-Os -Wall -mmcu=$(MCU)
 CC=avr-gcc
 OBJCOPY=avr-objcopy
+AVRSIZE=avr-size
 
 rom.hex: $(PROJECT).out
 	$(OBJCOPY) -O ihex $(PROJECT).out rom.hex
 
 $(PROJECT).out: $(OBJECTS) config.h
 	$(CC) $(CFLAGS) -o $(PROJECT).out -ffunction-sections -fdata-sections -Wl,--gc-sections,-Map,$(PROJECT).map $(OBJECTS)
+	$(AVRSIZE) -C --mcu=$(MCU) $(PROJECT).out
 
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@
